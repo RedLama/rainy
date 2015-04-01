@@ -13,15 +13,18 @@ RAIN_LEVEL = { 2 => "pluie faible",
 
 def humanize_result(result)
   first = result.shift
-  sentence = first["index"] == 0 ?
+  sentence = (first["index"] == 0 ?
     "La #{first[:rain_level]} " << first[:duration] == 60 ? "ne s'arretera pas tout de suite" : "s'arretera dans #{first[:duration]} minutes" :
-     sprintf("Il y aura dans %d minutes une %s pendant %d minutes", first.values) if first
+     sprintf("Il y aura dans %d minutes une %s pendant %d minutes", first.values) if first) || ""
 
   result.each do |state|
-    sentence << "il y aura #{state[:beginning] - first[:index] + first[:duration]} minutes après une #{state[:rain_level]} pendant #{state[:duration]} minutes"
+    beginning = state[:beginning] - first[:index] + first[:duration]
+    sentence << beginning == 0 ? "qui evoluera en " : ", suivi #{beginning} minutes après par une "
+    sentence << "#{state[:rain_level]} pendant #{state[:duration]} minutes"
     first = state
   end
-  result.join(", ")
+
+  sentence.empty? ? "Pas de pluie à l'horizon": sentence
 end
 
 def extract_information(data)
@@ -35,13 +38,14 @@ end
 
 def parse_information(data)
   if !data["isAvailable"]
-    p "Information non disponible pour votre département"
+    puts "Information non disponible pour votre département"
   elsif !data["hasData"]
-    p "Pas de donnée, réessayer plus tard"
+    puts "Pas de donnée, réessayer plus tard"
   else
-    p humanize_result(extract_information( data ))
+    puts humanize_result(extract_information( data ))
   end
 end
+
 
 begin
   # Opening sqlite Database
