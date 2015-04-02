@@ -68,11 +68,18 @@ if __FILE__ == $0
     # Opening sqlite Database
     sql_db = SQLite3::Database.new(GC_SQLITE_FILE)
 
-    sql_db.execute('SELECT code_departement, code_commune, article_riche, nom_riche FROM french_geographic_codes WHERE code_postal = ?', options[:zipcode]) do |row|
-      uri = URI("http://www.meteofrance.com/mf3-rpc-portlet/rest/pluie/#{row[0] + row[1] + '0'}")
-      res = Net::HTTP.get_response(uri)
-      parse_information(JSON.parse(res.body)) if res.is_a?(Net::HTTPSuccess)
+    results = sql_db.execute('SELECT code_departement, code_commune, article_riche, nom_riche FROM french_geographic_codes WHERE code_postal = ?', options[:zipcode])
+    results.each_with_index { |code, index| puts "#{index + 1}) #{code[2]}#{code[3]} (Code Insee: #{code[0] + code[1]})"}
+    result = begin
+      choice = STDIN.gets.chomp.to_i
+      (1..results.count).include?(choice) ? results[choice - 1] : raise
+    rescue
+      puts "Bad value : #{choice} is not between 0 and #{result.count}"
+      retry
     end
+    uri = URI("http://www.meteofrance.com/mf3-rpc-portlet/rest/pluie/#{result[0] + result[1] + '0'}")
+    res = Net::HTTP.get_response(uri)
+    parse_information(JSON.parse(res.body)) if res.is_a?(Net::HTTPSuccess)
   rescue SQLite3::Exception => e
     puts "Exception occurred"
     puts e
