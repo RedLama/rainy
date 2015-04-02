@@ -49,11 +49,26 @@ def parse_information(data)
 end
 
 if __FILE__ == $0
+  options = { all: false }
+  OptionParser.new do |opts|
+    opts.banner = "is it going to rain ?"
+    opts.separator ""
+    opts.separator "Usage: rainy [options] -z ZIPCODE | -i INSEE_CODE"
+    opts.separator ""
+    opts.separator "Options:"
+
+    opts.on("-z", "--zipcode ZIPCODE", "Search by zipcode (5 digits ex:78180). Warning a zipcode is less precise than an insee_code, you may have to choose between different cities") do |zipcode|
+      STDERR.puts("Your zipcode must have 5 digits like '78180'") and exit(1) if zipcode.to_s.length != 5
+      options[:zipcode] = zipcode
+    end
+
+  end.parse!
+
   begin
     # Opening sqlite Database
     sql_db = SQLite3::Database.new(GC_SQLITE_FILE)
 
-    sql_db.execute('SELECT code_departement, code_commune, article_riche, nom_riche FROM french_geographic_codes WHERE code_postal = ?', "78180") do |row|
+    sql_db.execute('SELECT code_departement, code_commune, article_riche, nom_riche FROM french_geographic_codes WHERE code_postal = ?', options[:zipcode]) do |row|
       uri = URI("http://www.meteofrance.com/mf3-rpc-portlet/rest/pluie/#{row[0] + row[1] + '0'}")
       res = Net::HTTP.get_response(uri)
       parse_information(JSON.parse(res.body)) if res.is_a?(Net::HTTPSuccess)
