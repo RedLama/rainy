@@ -19,9 +19,9 @@ URL_SERVICE = "http://www.meteofrance.com/mf3-rpc-portlet/rest/pluie/%s0"
 
 def humanize_result(result)
   first = result.shift
-  sentence = (first["index"] == 0 ?
-    "La #{first[:rain_level]} " << first[:duration] == 60 ? "ne s'arretera pas tout de suite" : "s'arretera dans #{first[:duration]} minutes" :
-     sprintf("Il y aura dans %d minutes une %s pendant %d minutes", first.values) if first) || ""
+  sentence = (first && first[:beginning] == 0 ?
+    "Cette #{first[:rain_level]} " + ( first[:duration] == 60 ? "ne s'arretera pas tout de suite" : "s'arretera dans #{first[:duration]} minutes" ) :
+    "Il y aura dans #{first[:beginning]} minutes une #{first[:rain_level]} pendant #{first[:duration]} minutes") || ""
 
   result.each do |state|
     beginning = state[:beginning] - first[:index] + first[:duration]
