@@ -1,4 +1,5 @@
 #!/usr/bin/env ruby
+#encoding: utf-8
 require 'sqlite3'
 require 'awesome_print'
 
@@ -12,6 +13,8 @@ GC_SQLITE_FILE = 'GC_FR.sqlite'
 RAIN_LEVEL = { 2 => "pluie faible",
   3 => "pluie modérée",
   4 => "forte pluie"}
+
+URL_SERVICE = "http://www.meteofrance.com/mf3-rpc-portlet/rest/pluie/%s0"
 
 def humanize_result(result)
   first = result.shift
@@ -57,11 +60,17 @@ if __FILE__ == $0
     opts.separator ""
     opts.separator "Options:"
 
+    opts.on("-a", "--all", "Display forecast for all insee code of a zip code") { options[:all] = true }
+
     opts.on("-z", "--zipcode ZIPCODE", "Search by zipcode (5 digits ex:78180). Warning a zipcode is less precise than an insee_code, you may have to choose between different cities") do |zipcode|
       STDERR.puts("Your zipcode must have 5 digits like '78180'") and exit(1) if zipcode.to_s.length != 5
       options[:zipcode] = zipcode
     end
 
+    opts.on("-i", "--inseecode", "Search by insee code (5 digits ex:78634)") do |insee|
+      STDERR.puts("Your insee code must have 5 digits like '78634'") and exit(1) if insee.to_s.length != 5
+      options[:insee_code] = insee
+    end
   end.parse!
 
   begin
@@ -69,17 +78,26 @@ if __FILE__ == $0
     sql_db = SQLite3::Database.new(GC_SQLITE_FILE)
 
     results = sql_db.execute('SELECT code_departement, code_commune, article_riche, nom_riche FROM french_geographic_codes WHERE code_postal = ?', options[:zipcode])
-    results.each_with_index { |code, index| puts "#{index + 1}) #{code[2]}#{code[3]} (Code Insee: #{code[0] + code[1]})"}
-    result = begin
-      choice = STDIN.gets.chomp.to_i
-      (1..results.count).include?(choice) ? results[choice - 1] : raise
-    rescue
-      puts "Bad value : #{choice} is not between 0 and #{result.count}"
-      retry
+
+    if options[:insee]
+      results = [options[:insee][0..1], options[:insee][2..-1]]
+    elsif options[:zipcode] && !options[:all] && results.count > 1
+      results.each_with_index { |code, index| puts "#{index + 1}) #{code[2]}#{code[3]} (Code Insee: #{code[0] + code[1]})"}
+      results = [ begin
+        choice = STDIN.gets.chomp.to_i
+        (1..results.count).include?(choice) ? results[choice - 1] : raise
+      rescue
+        puts "Bad value : #{choice} is not between 0 and #{results.count}"
+        retry
+      end ]
     end
-    uri = URI("http://www.meteofrance.com/mf3-rpc-portlet/rest/pluie/#{result[0] + result[1] + '0'}")
-    res = Net::HTTP.get_response(uri)
-    parse_information(JSON.parse(res.body)) if res.is_a?(Net::HTTPSuccess)
+
+    results.each do |result|
+      puts "Meteo sur #{result[2]}#{result[3]} (Code Insee: #{result[0] + result[1]})"
+      uri = URI(sprintf(URL_SERVICE, result[0] + result[1]))
+      res = Net::HTTP.get_response(uri)
+      parse_information(JSON.parse(res.body)) if res.is_a?(Net::HTTPSuccess)
+    end
   rescue SQLite3::Exception => e
     puts "Exception occurred"
     puts e
