@@ -52,7 +52,7 @@ def parse_information(data)
 end
 
 if __FILE__ == $0
-  options = { all: false }
+  options = { all: false, display: false }
   OptionParser.new do |opts|
     opts.banner = "is it going to rain ?"
     opts.separator ""
@@ -67,11 +67,15 @@ if __FILE__ == $0
       options[:zipcode] = zipcode
     end
 
-    opts.on("-i", "--inseecode", "Search by insee code (5 digits ex:78634)") do |insee|
+    opts.on("-d", "--display", "Show insee code equivalent for a zipcode") { options[:display] = true }
+
+    opts.on("-i", "--inseecode", "Search by insee code (5 digits ex:78634). This options deactive all others options") do |insee|
       STDERR.puts("Your insee code must have 5 digits like '78634'") and exit(1) if insee.to_s.length != 5
       options[:insee_code] = insee
     end
   end.parse!
+
+  display_goc = "%s (Code Insee: %s)"
 
   begin
     # Opening sqlite Database
@@ -82,7 +86,7 @@ if __FILE__ == $0
     if options[:insee]
       results = [options[:insee][0..1], options[:insee][2..-1]]
     elsif options[:zipcode] && !options[:all] && results.count > 1
-      results.each_with_index { |code, index| puts "#{index + 1}) #{code[2]}#{code[3]} (Code Insee: #{code[0] + code[1]})"}
+      results.each_with_index { |result, index| puts "#{index + 1}) " << sprintf( display_goc, result[2] << result[3], result[0] + result[1] ) }
       results = [ begin
         choice = STDIN.gets.chomp.to_i
         (1..results.count).include?(choice) ? results[choice - 1] : raise
@@ -91,6 +95,8 @@ if __FILE__ == $0
         retry
       end ]
     end
+
+    results.each { |result| printf( display_goc + "\n", result[2] << result[3], result[0] + result[1] ) } and exit(0) if options[:display]
 
     results.each do |result|
       puts "Meteo sur #{result[2]}#{result[3]} (Code Insee: #{result[0] + result[1]})"
