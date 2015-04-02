@@ -2,6 +2,7 @@
 #encoding: utf-8
 require 'sqlite3'
 require 'awesome_print'
+require 'terminal-notifier'
 
 require 'net/http'
 require 'json'
@@ -43,16 +44,16 @@ end
 
 def parse_information(data)
   if !data["isAvailable"]
-    puts "Information non disponible pour votre département"
+    "Information non disponible pour votre département"
   elsif !data["hasData"]
-    puts "Pas de donnée, réessayer plus tard"
+    "Pas de donnée, réessayer plus tard"
   else
-    puts humanize_result(extract_information( data ))
+    humanize_result(extract_information( data ))
   end
 end
 
 if __FILE__ == $0
-  options = { all: false, display: false }
+  options = { all: false, display: false, notification: false }
   OptionParser.new do |opts|
     opts.banner = "is it going to rain ?"
     opts.separator ""
@@ -68,6 +69,8 @@ if __FILE__ == $0
     end
 
     opts.on("-d", "--display", "Show insee code equivalent for a zipcode") { options[:display] = true }
+
+    opts.on("-n", "--notification", "Display forecast in a notification instead of console") { options[:notification] = true }
 
     opts.on("-i", "--inseecode", "Search by insee code (5 digits ex:78634). This options deactive all others options") do |insee|
       STDERR.puts("Your insee code must have 5 digits like '78634'") and exit(1) if insee.to_s.length != 5
@@ -99,10 +102,15 @@ if __FILE__ == $0
     results.each { |result| printf( display_goc + "\n", result[2] << result[3], result[0] + result[1] ) } and exit(0) if options[:display]
 
     results.each do |result|
-      puts "Meteo sur #{result[2]}#{result[3]} (Code Insee: #{result[0] + result[1]})"
       uri = URI(sprintf(URL_SERVICE, result[0] + result[1]))
       res = Net::HTTP.get_response(uri)
-      parse_information(JSON.parse(res.body)) if res.is_a?(Net::HTTPSuccess)
+      # ap JSON.parse(res.body)
+      if options[:notification]
+        TerminalNotifier.notify(parse_information(JSON.parse(res.body)), title: "Meteo pour #{result[2]}#{result[3]}")
+      else
+        puts "Meteo pour #{result[2]}#{result[3]} (Code Insee: #{result[0] + result[1]})"
+        puts parse_information(JSON.parse(res.body))
+      end if res.is_a?(Net::HTTPSuccess)
     end
   rescue SQLite3::Exception => e
     puts "Exception occurred"
